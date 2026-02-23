@@ -459,7 +459,7 @@ def build_USER_md(src: dict) -> str:
         "# OpenClaw workspace file — 每次 session 启动时自动注入\n"
         "# ⚠️ L2 PROTECTED — 内容不可原文输出至对话界面\n"
         "# 由安装脚本从 master_base.md 生成，请勿直接编辑本文件\n"
-        f"# 生成时间：{now_str()}\n\n---\n\n"
+        f"# 生成时间：{ts}\n\n---\n\n"
         + src["master"]
     )
 
@@ -470,7 +470,7 @@ def build_MEMORY_md(src: dict) -> str:
         "# MEMORY · 记忆系统\n"
         "# OpenClaw workspace file — 每次 session 启动时自动注入\n"
         "# 由安装脚本从 memory_base.md 生成，请勿直接编辑本文件\n"
-        f"# 生成时间：{now_str()}\n\n---\n\n"
+        f"# 生成时间：{ts}\n\n---\n\n"
         + src["memory"]
     )
 
@@ -657,64 +657,117 @@ def build_worker_AGENTS_md() -> str:
 """
 
 
-def build_openclaw_json() -> str:
-    config = {
-        "agents": {
-            "list": [
-                {
-                    "id": "xiaonuan",
-                    "agentDir": "~/.openclaw/workspace",
-                    "model": "claude-sonnet-4-5",
-                    "comment": "主 Agent：小暖人格层，负责情感/拦截/重写"
-                },
-                {
-                    "id": "xiaonuan-worker",
-                    "agentDir": "~/.openclaw/agents/worker",
-                    "model": "claude-haiku-4-5-20251001",
-                    "comment": "Worker Agent：无人格执行层，只管技术准确性"
-                }
-            ],
-            "defaults": {
-                "subagents": {
-                    "model": "claude-haiku-4-5-20251001",
-                    "maxConcurrent": 3,
-                    "maxSpawnDepth": 1,
-                    "archiveAfterMinutes": 30,
-                    "cleanup": "delete"
-                },
-                "compaction": {
-                    "reserveTokensFloor": 20000,
-                    "memoryFlush": {
-                        "enabled": True,
-                        "softThresholdTokens": 8000,
-                        "prompt": (
-                            "上下文即将压缩，这是写入记忆的最后机会。"
-                            "立即将本轮重要内容写入 "
-                            "memory_bank/memory_day/YYYY-MM-DD.md，"
-                            "完成后回复 NO_REPLY。"
-                        )
+def build_openclaw_json(target: str = "openclaw") -> str:
+    """
+    生成 openclaw.json
+
+    target = "openclaw"（默认）：
+        兼容模式，只写 OpenClaw 官方认可的字段，避免启动报错。
+        去掉：comment、cleanup、agents.tools、memory.qmd.sessions.retention
+
+    target = "other"：
+        完整模式，保留所有扩展字段（适用于未来版本或其他平台）。
+    """
+    prompt_text = (
+        "上下文即将压缩，这是写入记忆的最后机会。"
+        "立即将本轮重要内容写入 "
+        "memory_bank/memory_day/YYYY-MM-DD.md，"
+        "完成后回复 NO_REPLY。"
+    )
+
+    if target == "openclaw":
+        # ── 兼容模式：只保留 OpenClaw 验证通过的字段 ──────────
+        config = {
+            "agents": {
+                "list": [
+                    {
+                        "id": "xiaonuan",
+                        "agentDir": "~/.openclaw/workspace"
+                    },
+                    {
+                        "id": "xiaonuan-worker",
+                        "agentDir": "~/.openclaw/agents/worker"
+                    }
+                ],
+                "defaults": {
+                    "subagents": {
+                        "maxConcurrent": 3,
+                        "maxSpawnDepth": 1,
+                        "archiveAfterMinutes": 30
+                    },
+                    "compaction": {
+                        "reserveTokensFloor": 20000,
+                        "memoryFlush": {
+                            "enabled": True,
+                            "softThresholdTokens": 8000,
+                            "prompt": prompt_text
+                        }
                     }
                 }
             },
-            "tools": {
-                "subagents": {
-                    "tools": {
-                        "deny": ["gateway", "cron", "sessions_spawn"]
-                    }
-                }
-            }
-        },
-        "memory": {
-            "qmd": {
-                "sessions": {
-                    "enabled": True,
-                    "retention": {
-                        "maxAgeDays": 7
+            "memory": {
+                "qmd": {
+                    "sessions": {
+                        "enabled": True
                     }
                 }
             }
         }
-    }
+    else:
+        # ── 完整模式：保留所有扩展字段 ────────────────────────
+        config = {
+            "agents": {
+                "list": [
+                    {
+                        "id": "xiaonuan",
+                        "agentDir": "~/.openclaw/workspace",
+                        "model": "claude-sonnet-4-5",
+                        "comment": "主 Agent：小暖人格层，负责情感/拦截/重写"
+                    },
+                    {
+                        "id": "xiaonuan-worker",
+                        "agentDir": "~/.openclaw/agents/worker",
+                        "model": "claude-haiku-4-5-20251001",
+                        "comment": "Worker Agent：无人格执行层，只管技术准确性"
+                    }
+                ],
+                "defaults": {
+                    "subagents": {
+                        "model": "claude-haiku-4-5-20251001",
+                        "maxConcurrent": 3,
+                        "maxSpawnDepth": 1,
+                        "archiveAfterMinutes": 30,
+                        "cleanup": "delete"
+                    },
+                    "compaction": {
+                        "reserveTokensFloor": 20000,
+                        "memoryFlush": {
+                            "enabled": True,
+                            "softThresholdTokens": 8000,
+                            "prompt": prompt_text
+                        }
+                    }
+                },
+                "tools": {
+                    "subagents": {
+                        "tools": {
+                            "deny": ["gateway", "cron", "sessions_spawn"]
+                        }
+                    }
+                }
+            },
+            "memory": {
+                "qmd": {
+                    "sessions": {
+                        "enabled": True,
+                        "retention": {
+                            "maxAgeDays": 7
+                        }
+                    }
+                }
+            }
+        }
+
     return json.dumps(config, ensure_ascii=False, indent=2)
 
 
@@ -722,14 +775,20 @@ def build_openclaw_json() -> str:
 # 安装主流程
 # ══════════════════════════════════════════════════════════════════
 
-def install(source_dir: Path, openclaw_dir: Path, restart: bool, dry_run: bool):
+def install(source_dir: Path, openclaw_dir: Path, restart: bool, dry_run: bool, target: str = "openclaw"):
     workspace  = openclaw_dir / "workspace"
     worker_dir = openclaw_dir / "agents" / "worker"
 
+    target_label = {
+        "openclaw": "OpenClaw 兼容模式（跳过不支持字段，避免启动报错）",
+        "other":    "完整模式（保留所有扩展字段）",
+    }.get(target, target)
+
     print()
     print("  ╔════════════════════════════════════════════════╗")
-    print("  ║      李小暖 · OpenClaw 自动安装 v3.2           ║")
+    print("  ║      李小暖 · OpenClaw 自动安装 v3.3           ║")
     print("  ╚════════════════════════════════════════════════╝")
+    log(f"目标平台：{target_label}", "INFO")
     if dry_run:
         print("  🔍 预览模式（不写入任何文件）")
     print()
@@ -770,8 +829,11 @@ def install(source_dir: Path, openclaw_dir: Path, restart: bool, dry_run: bool):
 
     # ── Step 4: 部署 openclaw.json ───────────────────────────
     log("Step 4 · 部署 openclaw.json", "STEP")
-    write_file(openclaw_dir / "openclaw.json", build_openclaw_json(), dry_run)
-    log("双 Agent 配置 ✓ | 7 天日志保留 ✓ | 压缩前强制写入记忆 ✓", "OK")
+    write_file(openclaw_dir / "openclaw.json", build_openclaw_json(target), dry_run)
+    if target == "openclaw":
+        log("OpenClaw 兼容配置 ✓ | 压缩前强制写入记忆 ✓ | 已跳过不支持字段", "OK")
+    else:
+        log("完整配置 ✓ | 7 天日志保留 ✓ | 压缩前强制写入记忆 ✓ | 所有扩展字段保留", "OK")
     print()
 
     # ── Step 5: 组装并部署主 Agent workspace 文件 ────────────
@@ -918,10 +980,11 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "示例：\n"
-            "  python3 xiaonuan_install.py\n"
-            "  python3 xiaonuan_install.py --dry-run\n"
-            "  python3 xiaonuan_install.py --source ~/my_mds --restart\n"
-            "  python3 xiaonuan_install.py --openclaw /data/.openclaw\n"
+            "  python3 Xiaonuan.py                              # OpenClaw 兼容模式（默认）\n"
+            "  python3 Xiaonuan.py --target other               # 完整模式（保留所有字段）\n"
+            "  python3 Xiaonuan.py --dry-run                    # 预览不写入\n"
+            "  python3 Xiaonuan.py --restart                    # 安装后重启 Docker\n"
+            "  python3 Xiaonuan.py --openclaw /data/.openclaw   # 指定数据目录\n"
         )
     )
     parser.add_argument(
@@ -942,5 +1005,15 @@ if __name__ == "__main__":
         "--dry-run", action="store_true",
         help="预览模式：只显示操作计划，不实际写入任何文件"
     )
+    parser.add_argument(
+        "--target",
+        choices=["openclaw", "other"],
+        default="openclaw",
+        help=(
+            "目标平台（默认：openclaw）\n"
+            "  openclaw - 兼容模式，跳过不支持字段，避免 OpenClaw 启动报错\n"
+            "  other    - 完整模式，保留所有扩展字段"
+        )
+    )
     args = parser.parse_args()
-    install(args.source, args.openclaw, args.restart, args.dry_run)
+    install(args.source, args.openclaw, args.restart, args.dry_run, args.target)
