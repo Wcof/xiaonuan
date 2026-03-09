@@ -25,7 +25,7 @@ except ImportError:
     sys.exit(1)
 
 # 项目根目录
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent
 
 def log(msg, level="INFO"):
     icons = {"INFO": "   ", "OK": " ✅", "WARN": " ⚠️ ", "ERROR": " ❌", "STEP": " ▶"}

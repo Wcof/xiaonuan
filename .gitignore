@@ -32,3 +32,8 @@ venv/
 # 临时文件
 *.tmp
 .cache/
+
+# Node.js
+node_modules/
+dist/
+mcp-server/dist/
