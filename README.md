@@ -93,8 +93,7 @@ xiaonuan/
 │   ├── tasks_base.md           # 任务调度规则
 │   ├── secure_base.md          # 安全规则
 │   └── skills_base.md          # 技能库规则
-├── scripts/                     # 脚本工具
-│   └── install.py              # 安装脚本
+├── install.py                   # 安装脚本（项目根目录）
 ├── docs/                        # 文档
 ├── .backup/                     # 备份文件
 ├── .gitignore                   # Git 忽略规则
@@ -127,7 +126,14 @@ git clone https://github.com/user/xiaonuan.git
 cd xiaonuan
 ```
 
-### 2. 配置人格
+### 2. 安装依赖
+
+```bash
+# 安装 Python 依赖
+pip3 install -r requirements.txt
+```
+
+### 3. 配置人格
 
 编辑配置文件：
 
@@ -142,20 +148,19 @@ vim config/behavior.yaml
 vim config/sync.yaml
 ```
 
-### 3. 安装到 OpenClaw
+### 4. 运行安装脚本
 
 ```bash
-# 默认安装
-python3 scripts/install.py
+# 交互式安装（推荐）
+python3 install.py
 
-# 预览不写入
-python3 scripts/install.py --dry-run
-
-# 指定 OpenClaw 路径
-python3 scripts/install.py --openclaw /path/to/openclaw
+# 或使用命令行参数
+python3 install.py --openclaw    # 仅 OpenClaw 集成
+python3 install.py --persona     # 仅生成人格包
+python3 install.py --all         # 全部安装
 ```
 
-### 4. 初始化 Git 仓库（可选）
+### 5. 初始化 Git 仓库（可选）
 
 ```bash
 # 初始化 Git
@@ -256,15 +261,46 @@ cloud_data:
 
 ## 使用方法
 
-### 在 OpenClaw 中使用
+### 在不同平台中使用
+
+#### OpenClaw
 
 ```bash
-# 安装
-python3 scripts/install.py
-
-# OpenClaw 会自动加载人格配置
-# 无需手动操作
+# 运行安装脚本，选择选项 1 或使用命令行参数
+python3 install.py --openclaw
 ```
+
+#### Cursor
+
+Cursor 会自动加载项目根目录的 `.cursorrules` 文件：
+
+```bash
+# 生成 .cursorrules 文件
+python3 install.py --persona
+```
+
+#### Windsurf
+
+Windsurf 会自动加载项目根目录的 `.windsurfrules` 文件：
+
+```bash
+# 生成 .windsurfrules 文件
+python3 install.py --persona
+```
+
+#### Claude Desktop / Trae / Antigravity
+
+这些工具需要手动上传人格包文件：
+
+```bash
+# 1. 生成人格包
+python3 install.py --persona
+
+# 2. 在对话开始时上传 xiaonuan-persona.md 文件
+# 3. 在第一条消息中说："请按照这个人格配置与我互动"
+```
+
+**文件位置**：项目根目录的 `xiaonuan-persona.md`
 
 ### 调整人格设定
 
@@ -273,7 +309,7 @@ python3 scripts/install.py
 vim config/persona.yaml
 
 # 2. 重新安装
-python3 scripts/install.py
+python3 install.py
 
 # 3. 提交到 Git（可选）
 git add config/
@@ -320,13 +356,13 @@ vim src/SKILL.md
 vim src/memory_base.md
 
 # 重新安装
-python3 scripts/install.py
+python3 install.py
 ```
 
 ### 添加新功能
 
 1. 在 `src/` 中添加新的规则文件
-2. 修改 `scripts/install.py` 添加组装逻辑
+2. 修改 `install.py` 添加组装逻辑
 3. 测试安装流程
 4. 提交到 Git
 
@@ -353,7 +389,7 @@ cp .backup/SKILL.md src/
 cp .backup/* src/
 
 # 重新安装
-python3 scripts/install.py
+python3 install.py
 ```
 
 ### Q: 如何查看数据变更历史？
@@ -376,7 +412,7 @@ git push
 git pull
 
 # 重新安装（如果需要）
-python3 scripts/install.py
+python3 install.py
 ```
 
 ---
