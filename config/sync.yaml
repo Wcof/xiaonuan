@@ -1,0 +1,39 @@
+# 李小暖 · 同步配置
+# 此文件定义云端同步策略
+
+sync:
+  # 主存储：GitHub
+  github:
+    enabled: true
+    remote: origin
+    branch: main
+
+  # 可选：Notion（仅用于可视化）
+  notion:
+    enabled: false
+    api_key: ""  # 留空，不使用
+    database_id: ""
+
+# 数据分层：哪些上云，哪些本地
+cloud_data:
+  # 上云数据（抽象、脱敏）
+  upload:
+    - config/
+    - data/identity/
+    - data/memory/memory_week/
+    - data/memory/memory_month/
+    - data/memory/memory_topic/
+
+  # 本地数据（隐私、敏感）
+  local_only:
+    - data/secure/
+    - data/memory/memory_day/  # 天记忆包含敏感细节
+    - .backup/
+
+# Git 忽略规则
+gitignore:
+  - data/secure/
+  - data/memory/memory_day/
+  - .backup/
+  - "*.log"
+  - ".DS_Store"
