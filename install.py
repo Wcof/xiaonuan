@@ -7,12 +7,17 @@
 ║    pip3 install -r requirements.txt             # 安装依赖       ║
 ║    python3 install.py                           # 交互式安装     ║
 ║    python3 install.py --persona                 # 仅生成人格包   ║
-║    python3 install.py --mcp                     # 仅安装 MCP     ║
+║    python3 install.py --mcp                     # 安装并启动 MCP  ║
+║    python3 install.py --mcp --no-run            # 仅安装 MCP     ║
+║    python3 install.py --mcp --log <path>        # 启动并记录日志 ║
+║    python3 install.py --trae-config             # 自动修复 Trae 配置 ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
 import sys
 import argparse
+from typing import Optional
+import os
 from pathlib import Path
 from datetime import datetime
 
@@ -37,7 +42,7 @@ def show_menu():
     print("╚══════════════════════════════════════════════════════════════════╝\n")
     print("请选择安装方式：\n")
     print("1. 生成人格包（通用，支持所有工具）")
-    print("2. MCP 服务（推荐用于 Claude Desktop）")
+    print("2. MCP 服务（安装并启动）")
     print("0. 退出\n")
 
     while True:
@@ -147,7 +152,7 @@ Windsurf 会自动加载项目根目录的 `.windsurfrules` 文件，无需手�
     print("- Windsurf: 自动加载 .windsurfrules")
     print(f"- Claude/Trae/Antigravity: 上传 {persona_file.name}\n")
 
-def install_mcp():
+def install_mcp(run_after: bool = True, log_path: Optional[str] = None):
     """安装 MCP 服务"""
     log("安装 MCP 服务...", "STEP")
 
@@ -173,13 +178,26 @@ def install_mcp():
         return False
     log("npm 依赖安装完成", "OK")
 
-    # 编译
-    log("编译 TypeScript...", "STEP")
-    result = subprocess.run(["npm", "run", "build"], cwd=mcp_dir, capture_output=True, text=True)
-    if result.returncode != 0:
-        log(f"编译失败: {result.stderr}", "ERROR")
+    def needs_rebuild() -> bool:
+        dist_index = mcp_dir / "dist" / "index.js"
+        if not dist_index.exists():
+            return True
+        dist_mtime = dist_index.stat().st_mtime
+        for path in (mcp_dir / "src").rglob("*.ts"):
+            if path.stat().st_mtime > dist_mtime:
+                return True
         return False
-    log("编译完成", "OK")
+
+    # 编译（仅当有变更时）
+    if needs_rebuild():
+        log("检测到源码变更，编译 TypeScript...", "STEP")
+        result = subprocess.run(["npm", "run", "build"], cwd=mcp_dir, capture_output=True, text=True)
+        if result.returncode != 0:
+            log(f"编译失败: {result.stderr}", "ERROR")
+            return False
+        log("编译完成", "OK")
+    else:
+        log("未检测到源码变更，跳过编译", "OK")
 
     # 显示配置说明
     print("\n✅ MCP 服务安装完成！\n")
@@ -196,12 +214,63 @@ def install_mcp():
   }
 }
 """)
+    if not run_after:
+        return True
+
+    # 启动 MCP 服务（前台阻塞）
+    log("启动 MCP 服务（Ctrl+C 退出）...", "STEP")
+    import subprocess
+    logs_dir = PROJECT_ROOT / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    resolved_log = Path(log_path) if log_path else (logs_dir / "mcp.log")
+
+    cmd = f'cd "{mcp_dir}" && node dist/index.js 2>&1 | tee -a "{resolved_log}"'
+    try:
+        subprocess.run(["/bin/zsh", "-lc", cmd], check=False)
+    except KeyboardInterrupt:
+        log("MCP 服务已停止", "INFO")
     return True
+
+def update_trae_config():
+    """更新 Trae MCP 配置中的项目路径"""
+    trae_config = Path.home() / "Library/Application Support/Trae CN/User/mcp.json"
+    if not trae_config.exists():
+        log(f"未找到 Trae 配置文件：{trae_config}", "WARN")
+        return False
+
+    try:
+        content = trae_config.read_text(encoding="utf-8")
+    except Exception as e:
+        log(f"读取 Trae 配置失败: {e}", "ERROR")
+        return False
+
+    old_path = "/absolute/path/to/xiaonuan"
+    new_path = str(PROJECT_ROOT)
+
+    if old_path not in content and new_path in content:
+        log("Trae 配置已是正确路径，无需修改", "OK")
+        return True
+
+    if old_path not in content:
+        log("Trae 配置未包含占位路径，无法自动替换，请手动检查", "WARN")
+        return False
+
+    updated = content.replace(old_path, new_path)
+    try:
+        trae_config.write_text(updated, encoding="utf-8")
+        log(f"已更新 Trae 配置路径：{trae_config}", "OK")
+        return True
+    except Exception as e:
+        log(f"写入 Trae 配置失败: {e}", "ERROR")
+        return False
 
 def main():
     parser = argparse.ArgumentParser(description='李小暖人格插件安装脚本')
     parser.add_argument('--persona', action='store_true', help='仅生成人格包')
-    parser.add_argument('--mcp', action='store_true', help='仅安装 MCP 服务')
+    parser.add_argument('--mcp', action='store_true', help='安装并启动 MCP 服务')
+    parser.add_argument('--no-run', action='store_true', help='仅安装，不启动 MCP')
+    parser.add_argument('--log', type=str, help='MCP 日志输出路径（默认 logs/mcp.log）')
+    parser.add_argument('--trae-config', action='store_true', help='自动修复 Trae MCP 配置路径')
 
     args = parser.parse_args()
 
@@ -214,7 +283,10 @@ def main():
         return
 
     if args.mcp:
-        install_mcp()
+        install_mcp(run_after=not args.no_run, log_path=args.log)
+        return
+    if args.trae_config:
+        update_trae_config()
         return
 
     # 交互式模式

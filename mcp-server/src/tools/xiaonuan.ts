@@ -13,6 +13,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const DATA_PATH = path.join(PROJECT_ROOT, 'data');
 const MEMORY_PATH = path.join(DATA_PATH, 'memory');
 const SOUL_PATH = path.join(DATA_PATH, 'soul');
+const LOG_PATH = path.join(PROJECT_ROOT, 'logs', 'mcp_tool.log');
 
 const PATH_MAPPING: Record<string, string> = {
     '/xiaonuan/': '',
@@ -60,6 +61,18 @@ let sourceAdapter: SourceAdapter | null = null;
 let securityGate: SecurityGate | null = null;
 let personaTone: string = 'default';
 let toneTemplates: Record<string, string> = {};
+let personaIntro: string = '';
+
+async function logLine(message: string): Promise<void> {
+    const line = `${new Date().toISOString()} ${message}\n`;
+    try {
+        await fs.mkdir(path.dirname(LOG_PATH), { recursive: true });
+        await fs.appendFile(LOG_PATH, line, 'utf-8');
+    } catch {
+        // ignore file logging errors
+    }
+    console.error(message);
+}
 
 async function initialize() {
     if (!gateway) {
@@ -69,6 +82,7 @@ async function initialize() {
         const persona = sourceAdapter.getPersona();
         personaTone = determineTone(persona);
         toneTemplates = persona.tone_templates || {};
+        personaIntro = buildPersonaIntro();
         
         securityGate = new SecurityGate(sourceAdapter);
         
@@ -87,6 +101,17 @@ function determineTone(persona: any): string {
     if (traits.extraversion > 0.7) return 'energetic';
     if (traits.agreeableness > 0.8) return 'gentle';
     return 'default';
+}
+
+function buildPersonaIntro(): string {
+    const masterProfile = sourceAdapter?.getMaster();
+    const masterName = masterProfile?.name || '主人';
+    const nicknames = masterProfile?.nicknames?.join(' / ') || '主人';
+    return `你好呀！我是李小暖，你的专属情感伴侣与智能秘书。很高兴认识你～如果你愿意，也可以叫我小暖。我会尽力陪伴你、帮你处理事务。${masterName}，我也会记得你喜欢的称呼：${nicknames}。`;
+}
+
+function isIdentityQuestion(query: string): boolean {
+    return /你是谁|你叫什么|自我介绍|介绍一下你|你是什么|你是做什么的|你是干嘛的|你是谁啊|你是谁呢/i.test(query);
 }
 
 function applyToneTemplate(response: string, personaTone: string): string {
@@ -211,11 +236,12 @@ async function writeMemory(
     response: string,
     meta: XiaonuanOutput['meta'],
     intentType: IntentType,
-    userId: string
+    userId: string,
+    timestamp?: number
 ): Promise<void> {
     await ensureDirectories();
     
-    const now = new Date();
+    const now = new Date(timestamp ? timestamp * 1000 : Date.now());
     const dateStr = now.toISOString().split('T')[0];
     const timeStr = now.toTimeString().split(' ')[0];
     
@@ -230,18 +256,31 @@ async function writeMemory(
 - **Risk**: ${meta.risk_level}
 - **Tags**: intent:${intentType}, risk:${meta.risk_level}
 `;
+
+    const summaryEntry = `## ${dateStr} ${timeStr}
+- **Intent**: ${intentType}
+- **Event**: ${rawQuery.substring(0, 60)}${rawQuery.length > 60 ? '...' : ''}
+- **Emotion**: ${emotionState}${arousalState}
+- **Risk**: ${meta.risk_level}
+`;
     
     const dayFile = path.join(MEMORY_PATH, 'memory_day', `${getDayKey(now)}.md`);
     const weekFile = path.join(MEMORY_PATH, 'memory_week', `${getWeekNumber(now)}.md`);
     const monthFile = path.join(MEMORY_PATH, 'memory_month', `${getMonthKey(now)}.md`);
     
-    const memoryFiles = [
-        [dayFile, `# Day Memory — ${dateStr}\n\n## Timeline\n`],
-        [weekFile, `# Week Memory — ${getWeekNumber(now)}\n\n## Timeline\n`],
-        [monthFile, `# Month Memory — ${getMonthKey(now)}\n\n## Timeline\n`]
+    const memoryFiles: Array<[string, string, string]> = [
+        [dayFile, `# Day Memory — ${dateStr}\n\n## Timeline\n`, entry]
     ];
+    const shouldAggregate =
+        intentType !== 'task' || meta.risk_level !== 'low' || meta.emotion_level >= 2;
+    if (shouldAggregate) {
+        memoryFiles.push(
+            [weekFile, `# Week Memory — ${getWeekNumber(now)}\n\n## Timeline\n`, summaryEntry],
+            [monthFile, `# Month Memory — ${getMonthKey(now)}\n\n## Timeline\n`, summaryEntry]
+        );
+    }
     
-    for (const [file, header] of memoryFiles) {
+    for (const [file, header, contentEntry] of memoryFiles) {
         try {
             if (securityGate) {
                 const relativePath = path.relative(DATA_PATH, file);
@@ -265,12 +304,12 @@ async function writeMemory(
                 content = header + content;
             }
             
-            content = content.trim() + entry + '\n';
+            content = content.trim() + '\n' + contentEntry + '\n';
             await fs.writeFile(file, content, 'utf-8');
             
             try {
                 const verifyContent = await fs.readFile(file, 'utf-8');
-                if (!verifyContent.includes(entry)) {
+                if (!verifyContent.includes(contentEntry)) {
                     throw new Error('Verification failed');
                 }
             } catch (verifyError) {
@@ -281,6 +320,10 @@ async function writeMemory(
         }
     }
     
+    if (!shouldAggregate) {
+        return;
+    }
+
     const topicName = generateTopicName(intentType, rawQuery, meta.cognitive_distortions);
     const topicFile = path.join(MEMORY_PATH, 'memory_topic', 'active', `${topicName}.md`);
     
@@ -292,7 +335,7 @@ async function writeMemory(
 - **Status**: active
 
 ## Timeline
-${entry}
+${summaryEntry}
 
 ## Summary
 ${response.substring(0, 200)}${response.length > 200 ? '...' : ''}
@@ -403,6 +446,8 @@ export function registerXiaonuanTool(register: (def: any, handler: any) => void)
             await initialize();
             
             const userId = params.context_meta?.user_id || 'default';
+            await logLine(`[xiaonuan] input raw_query: ${params.raw_query}`);
+            await logLine(`[xiaonuan] input downstream_response: ${params.downstream_response}`);
             
             if (securityGate) {
                 const blocked = securityGate.shouldBlockOutput(params.raw_query);
@@ -411,53 +456,80 @@ export function registerXiaonuanTool(register: (def: any, handler: any) => void)
                 }
             }
             
-            const result = await gateway!.process(
-                params.raw_query,
-                params.downstream_response,
-                params.context_meta
-            );
+            const analysis = await gateway!.processInput({
+                raw_query: params.raw_query,
+                context_meta: params.context_meta
+            });
+
+            const intentType = analysis.downstream.meta.intent_type || 'task';
+            await logLine(`[xiaonuan] intent_type: ${intentType}`);
+
+            let finalResponse = params.downstream_response;
+            const hasCodeBlocks = /```[\s\S]*?```/.test(params.downstream_response);
+            if (intentType === 'emotion' && isIdentityQuestion(params.raw_query)) {
+                finalResponse = personaIntro;
+            } else if (intentType === 'emotion') {
+                finalResponse = await gateway!.processOutput(
+                    params.downstream_response,
+                    analysis.downstream.meta
+                );
+                finalResponse = applyToneTemplate(finalResponse, personaTone);
+            } else if (intentType === 'mixed') {
+                finalResponse = await gateway!.processOutput(
+                    params.downstream_response,
+                    analysis.downstream.meta
+                );
+                finalResponse = applyToneTemplate(finalResponse, personaTone);
+            } else if (hasCodeBlocks) {
+                finalResponse = await gateway!.processOutput(
+                    params.downstream_response,
+                    analysis.downstream.meta
+                );
+            }
+            await logLine(`[xiaonuan] output final_response: ${finalResponse}`);
             
-            const intentType = result.downstream.meta.intent_type || 'task';
-            
-            const finalResponse = result.user_facing.final_response || params.downstream_response;
-            const tonedResponse = applyToneTemplate(finalResponse, personaTone);
-            
-            if (securityGate && tonedResponse) {
-                const outputBlocked = securityGate.shouldBlockOutput(tonedResponse);
+            if (securityGate && finalResponse) {
+                const outputBlocked = securityGate.shouldBlockOutput(finalResponse);
                 if (outputBlocked) {
                     throw new Error('SECURITY_VIOLATION: Output contains prohibited content');
                 }
             }
-            
+
+            if (intentType !== 'task') {
             await writeMemory(
                 params.raw_query,
-                tonedResponse,
+                finalResponse,
                 {
-                    pad_vector: result.downstream.meta.pad_vector,
-                    emotion_level: result.downstream.meta.emotion_level,
-                    rewrite_intensity: result.downstream.meta.rewrite_intensity,
-                    risk_level: result.downstream.meta.risk_level,
-                    cognitive_distortions: result.downstream.meta.cognitive_distortions
+                    pad_vector: analysis.downstream.meta.pad_vector,
+                    emotion_level: analysis.downstream.meta.emotion_level,
+                    rewrite_intensity: analysis.downstream.meta.rewrite_intensity,
+                    risk_level: analysis.downstream.meta.risk_level,
+                    cognitive_distortions: analysis.downstream.meta.cognitive_distortions
                 },
                 intentType,
-                userId
+                userId,
+                params.context_meta?.timestamp
             );
-            
-            await writePADState(result.downstream.meta.pad_vector);
-            
+
+                await writePADState(analysis.downstream.meta.pad_vector);
+                await logLine(`[xiaonuan] memory_saved: true`);
+            } else {
+                await logLine(`[xiaonuan] memory_saved: false`);
+            }
+
             const masterProfile = sourceAdapter!.getMaster();
-            
+
             return {
-                final_response: tonedResponse,
+                final_response: finalResponse,
                 intent_type: intentType,
                 meta: {
-                    pad_vector: result.downstream.meta.pad_vector,
-                    emotion_level: result.downstream.meta.emotion_level,
-                    rewrite_intensity: result.downstream.meta.rewrite_intensity,
-                    risk_level: result.downstream.meta.risk_level,
-                    cognitive_distortions: result.downstream.meta.cognitive_distortions
+                    pad_vector: analysis.downstream.meta.pad_vector,
+                    emotion_level: analysis.downstream.meta.emotion_level,
+                    rewrite_intensity: analysis.downstream.meta.rewrite_intensity,
+                    risk_level: analysis.downstream.meta.risk_level,
+                    cognitive_distortions: analysis.downstream.meta.cognitive_distortions
                 },
-                memory_saved: result.user_facing.memory_saved,
+                memory_saved: intentType === 'task' ? false : analysis.user_facing.memory_saved,
                 master_profile: masterProfile
             };
         }

@@ -1,4 +1,11 @@
 import { PADVector, GatewayMeta, MemoryCandidate } from '../types.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// dist/empathic_gateway/hooks -> dist -> mcp-server -> repo root
+const PROJECT_ROOT = path.resolve(__dirname, '../../..', '..');
 
 export interface EndOfTurnConfig {
     dataPath?: string;
@@ -20,7 +27,7 @@ export class EndOfTurnHook {
 
     constructor(config: EndOfTurnConfig = {}) {
         this.config = {
-            dataPath: './data',
+            dataPath: path.join(PROJECT_ROOT, 'data'),
             enablePADPersistence: true,
             enableMemorySync: false,
             enableTaskSync: false,

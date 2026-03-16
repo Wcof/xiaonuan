@@ -22,7 +22,16 @@ export function rewriteResponse(
         personaTone = 'default'
     } = options;
 
-    if (interventionType === 'none' && meta.rewrite_intensity < 0.15) {
+    const hasCodeBlocks = /```[\s\S]*?```/.test(originalResponse);
+    let intensity = meta.rewrite_intensity;
+
+    if (meta.intent_type === 'mixed') {
+        intensity = Math.min(intensity, 0.9);
+    } else if (hasCodeBlocks) {
+        intensity = Math.min(intensity, 0.1);
+    }
+
+    if (interventionType === 'none' && intensity < 0.15) {
         return originalResponse;
     }
 
@@ -36,15 +45,15 @@ export function rewriteResponse(
         return wrapWithSafety(originalResponse, wrapper, meta);
     }
 
-    if (meta.rewrite_intensity < 0.2) {
+    if (intensity < 0.2) {
         return addWarmTone(originalResponse, personaTone);
     }
 
-    if (preserveTechnical) {
-        return insertEmotionalWrapper(originalResponse, wrapper, meta.rewrite_intensity);
+    if (preserveTechnical || hasCodeBlocks) {
+        return insertEmotionalWrapperWithCodeGuard(originalResponse, wrapper, intensity);
     }
 
-    return blendResponse(originalResponse, wrapper, meta.rewrite_intensity);
+    return blendResponse(originalResponse, wrapper, intensity);
 }
 
 function applyPersonaTone(wrapper: string, personaTone: string): string {
@@ -114,6 +123,34 @@ function insertEmotionalWrapper(
     }
 
     return originalResponse + emotionalSuffix;
+}
+
+function insertEmotionalWrapperWithCodeGuard(
+    originalResponse: string,
+    wrapper: string,
+    intensity: number
+): string {
+    const { protectedText, codeBlocks } = protectCodeBlocks(originalResponse);
+    const rewritten = insertEmotionalWrapper(protectedText, wrapper, intensity);
+    return restoreCodeBlocks(rewritten, codeBlocks);
+}
+
+function protectCodeBlocks(text: string): { protectedText: string; codeBlocks: string[] } {
+    const codeBlocks: string[] = [];
+    const protectedText = text.replace(/```[\s\S]*?```/g, (match) => {
+        const index = codeBlocks.length;
+        codeBlocks.push(match);
+        return `__CODE_BLOCK_${index}__`;
+    });
+    return { protectedText, codeBlocks };
+}
+
+function restoreCodeBlocks(text: string, codeBlocks: string[]): string {
+    let restored = text;
+    for (let i = 0; i < codeBlocks.length; i++) {
+        restored = restored.replace(`__CODE_BLOCK_${i}__`, codeBlocks[i]);
+    }
+    return restored;
 }
 
 function blendResponse(

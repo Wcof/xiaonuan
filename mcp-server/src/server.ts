@@ -79,6 +79,7 @@ export class XiaoNuanServer {
 
     private setupHandlers() {
         this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+            console.error(`[xiaonuan] tools/list -> ${this.tools.length} tools`);
             return {
                 tools: this.tools,
             };
@@ -89,11 +90,14 @@ export class XiaoNuanServer {
             const handler = this.toolHandlers.get(name);
 
             if (!handler) {
+                console.error(`[xiaonuan] tools/call -> ${name} (not found)`);
                 throw new Error(`Tool not found: ${name}`);
             }
 
             try {
+                console.error(`[xiaonuan] tools/call -> ${name}`);
                 const result = await handler(args ?? {});
+                console.error(`[xiaonuan] tools/call -> ${name} (ok)`);
                 return {
                     content: [
                         {
@@ -103,6 +107,7 @@ export class XiaoNuanServer {
                     ]
                 };
             } catch (error: any) {
+                console.error(`[xiaonuan] tools/call -> ${name} (error)`, error);
                 return {
                     isError: true,
                     content: [
@@ -116,6 +121,7 @@ export class XiaoNuanServer {
         });
 
         this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+            console.error(`[xiaonuan] resources/list -> ${this.resources.length} resources`);
             return {
                 resources: this.resources,
             };
@@ -126,11 +132,14 @@ export class XiaoNuanServer {
             const handler = this.resourceHandlers.get(uri);
 
             if (!handler) {
+                console.error(`[xiaonuan] resources/read -> ${uri} (not found)`);
                 throw new Error(`Resource not found: ${uri}`);
             }
 
             try {
+                console.error(`[xiaonuan] resources/read -> ${uri}`);
                 const result = await handler(uri);
+                console.error(`[xiaonuan] resources/read -> ${uri} (ok)`);
                 return {
                     contents: [
                         {
@@ -141,6 +150,7 @@ export class XiaoNuanServer {
                     ]
                 };
             } catch (error: any) {
+                console.error(`[xiaonuan] resources/read -> ${uri} (error)`, error);
                 throw new Error(`Error reading resource ${uri}: ${error.message}`);
             }
         });
