@@ -1,73 +1,78 @@
-# XiaoNuan MCP Server
+# Empathic Gateway 模块说明
 
-本目录是李小暖人格服务的标准 MCP (Model Context Protocol) 实现。通过启动本服务，Claude Desktop、Cursor 或 Windsurf 可以直接访问并结合李小暖的“人格”及“记忆”数据进行回复。
+> 本文档是 `mcp-server/` 子模块的功能说明，依赖根项目的 `src/*.md` 与 `config/` 配置。
 
-## 目录结构
+**注意**：这不是独立项目，是 xiaonuan 主系统的实现子模块。
 
-- `src/index.ts`：服务入口，采用 STDIO 传输
-- `src/server.ts`：核心 MCP 注册逻辑
-- `src/tools/`：注册为 MCP Tools 的能力（获取身份、获取/修改记忆、获取大语言模型设定规则）
-- `src/resources/`：注册为 MCP Resources 的配置文件和缓存等机制
+---
 
-## 安装与编译
+## 模块概述
+
+`mcp-server/` 是李小暖系统的 MCP (Model Context Protocol) 服务实现，提供情感网关能力。
+
+### 核心功能
+
+| 功能 | 说明 |
+|------|------|
+| 情感分析 | PAD 向量计算、情绪分级 |
+| 认知偏差检测 | 10 种认知扭曲模式识别 |
+| 意图分类 | 情感/任务/混合类型 |
+| 输出润色 | 情感陪护策略、响应改写 |
+| 安全机制 | 三层安全层级 |
+
+### 依赖
+
+- 根目录 `src/*.md` - 系统规则源码
+- 根目录 `config/` - 配置文件
+- Node.js 18+
+- TypeScript 5+
+
+---
+
+## 快速开始
 
 ```bash
+# 编译
+cd mcp-server
 npm install
 npm run build
 ```
 
-## 客户端集成配置文档
+### 客户端配置
 
-### 1. Claude Desktop
-
-编辑 `~/Library/Application Support/Claude/claude_desktop_config.json`，添加如下内容：
+在对应的 MCP 配置文件中添加：
 
 ```json
 {
   "mcpServers": {
     "xiaonuan": {
       "command": "node",
-      "args": ["/绝对路径/xiaonuan/mcp-server/dist/index.js"]
+      "args": ["/absolute/path/to/xiaonuan/mcp-server/dist/index.js"]
     }
   }
 }
 ```
 
-### 2. Cursor
+---
 
-编辑项目根目录（或全局）的 `.cursor/mcp.json`：
+## 模块架构
 
-```json
-{
-  "mcpServers": {
-    "xiaonuan": {
-      "command": "node",
-      "args": ["/绝对路径/xiaonuan/mcp-server/dist/index.js"]
-    }
-  }
-}
 ```
-或通过 Settings -> MCP 直接添加新的 Node.js Server。
-
-### 3. Windsurf
-
-编辑项目配置的 `.windsurf/mcp.json` 或者在 Windsurf MCP 管理界面中配置：
-
-```json
-{
-  "mcpServers": {
-    "xiaonuan": {
-      "command": "node",
-      "args": ["/绝对路径/xiaonuan/mcp-server/dist/index.js"]
-    }
-  }
-}
+empathic_gateway/
+├── emotion/       # 情感计算引擎
+├── processing/    # 处理流程
+├── rewriting/     # 输出润色
+├── storage/       # 存储管理
+├── hooks/        # 生命周期钩子
+├── adapters/     # 适配器
+└── security/     # 安全模块
 ```
 
-## 测试命令
+详细 API 说明请参考根目录文档。
 
-可以通过以下命令在本地快速测试是否能够调用 Tool：
+---
 
-```bash
-echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | node dist/index.js
-```
+## 相关文档
+
+- [主项目 README](../README.md)
+- [Empathic Gateway 实现计划](../docs/IMPLEMENTATION_PLAN.md)

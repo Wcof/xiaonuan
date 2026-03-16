@@ -1,0 +1,29 @@
+emotion_thresholds:
+  low: 0.3
+  medium: 0.6
+  high: 0.8
+  crisis: 0.95
+
+rewrite_intensity:
+  L0: 0.1
+  L1: 0.25
+  L2: 0.5
+  L3: 0.75
+  L4: 0.9
+
+memory:
+  enabled: true
+  storage_type: "jsonl"
+  db_path: "./gateway_data"
+  time_decay_half_life: 604800
+
+privacy:
+  redact_raw_query: true
+
+integration:
+  soul_system: true
+  memory_system: true
+  task_system: true
+
+logging:
+  level: "INFO"

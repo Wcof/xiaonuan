@@ -1,41 +1,65 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code 在此仓库中工作时提供指导。
 
 ## 项目概述
 
-**xiaonuan**（李小暖）是一个 OpenClaw 自动安装脚本，用于部署个人 AI 伴侣与智能秘书系统。项目采用"源码与脚本分离"的设计：7 个 markdown 源文件定义系统规则，Python 脚本负责读取、组装并部署到 OpenClaw workspace。
+**李小暖（XiaoNuan）** 是一个标准化的 AI 人格插件工程，旨在为不同的 AI 开发工具提供统一的身份记忆管理能力。
 
-**核心原则**：
-- 7 个源 markdown 文件永远不修改，它们是唯一的"源码"
-- 脚本负责读取源码，组装为 OpenClaw 标准格式并部署
-- 源码改了重跑脚本即可更新，两者完全解耦
+**核心理念**：
+- **身份记忆优先**：专注于"你我他"的身份认知，而非任务记忆
+- **跨平台集成**：支持 OpenClaw、Claude Desktop、Cursor、Windsurf 等工具
+- **数据分层管理**：云端存储抽象数据，本地保护隐私数据
+- **插件化设计**：独立工程，不依赖特定平台
+
+**设计原则**：
+- 核心数据不丢失：所有重要数据都有备份和版本控制
+- 结构清晰：配置、数据、源码、脚本分离
+- 多平台支持：通过标准接口集成到不同工具
+- 隐私优先：敏感数据永远在本地
 
 ## 常用命令
 
 ### 安装与部署
 
 ```bash
-# 默认路径安装
-python3 Xiaonuan.py
+# 交互式安装（推荐）
+python3 install.py
 
-# 预览不写入（干运行）
-python3 Xiaonuan.py --dry-run
+# 仅 OpenClaw 集成
+python3 install.py --openclaw
 
-# 安装后重启 OpenClaw
-python3 Xiaonuan.py --restart
+# 仅生成人格包
+python3 install.py --persona
 
-# 指定源文件目录
-python3 Xiaonuan.py --source ~/mds
-
-# 指定 OpenClaw 数据目录
-python3 Xiaonuan.py --openclaw /path/to/openclaw
+# 全部安装
+python3 install.py --all
 ```
 
-### 查看脚本帮助
+### 配置管理
 
 ```bash
-python3 Xiaonuan.py --help
+# 编辑人格配置
+vim config/persona.yaml
+
+# 编辑行为规则
+vim config/behavior.yaml
+
+# 编辑同步策略
+vim config/sync.yaml
+```
+
+### 查看数据
+
+```bash
+# 查看周记忆
+cat data/memory/memory_week/2026-W10.md
+
+# 查看身份信息
+cat data/identity/master/profile.md
+
+# 查看 Git 历史
+git log --oneline data/memory/
 ```
 
 ## 高级架构

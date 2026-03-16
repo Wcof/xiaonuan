@@ -9,6 +9,7 @@ import {
 import { registerIdentityTool } from './tools/identity.js';
 import { registerMemoryTool } from './tools/memory.js';
 import { registerPersonaTool, registerUpdateMemoryTool } from './tools/persona.js';
+import { registerXiaonuanTool } from './tools/xiaonuan.js';
 import { registerConfigResources } from './resources/config.js';
 import { registerDataResources } from './resources/data.js';
 
@@ -69,6 +70,7 @@ export class XiaoNuanServer {
         registerMemoryTool(registerTool);
         registerPersonaTool(registerTool);
         registerUpdateMemoryTool(registerTool);
+        registerXiaonuanTool(registerTool);
 
         // Resources
         registerConfigResources(registerResource);

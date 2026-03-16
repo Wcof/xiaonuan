@@ -1,7 +1,45 @@
-# 项目改造总结
+# 项目文档导航
 
-## 改造完成时间
-2026-03-09
+## 项目概述
+
+**xiaonuan（李小暖）** 是一个单一的完整 AI 伴侣系统，包含多个子模块。
+
+---
+
+## 文档分类
+
+### 主项目入口文档
+
+| 文档 | 说明 |
+|------|------|
+| [README.md](../README.md) | 项目主入口，包含概述、快速开始、使用说明 |
+| [CLAUDE.md](../CLAUDE.md) | Claude Code 开发指南 |
+| [docs/CHANGELOG.md](./CHANGELOG.md) | 版本变更历史 |
+
+### 开发文档
+
+| 文档 | 说明 |
+|------|------|
+| [docs/IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | Empathic Gateway 实现计划 |
+| [docs/gateway_plan.md](./gateway_plan.md) | Gateway 规划文档 |
+| [docs/agent_empathic_gateway.md](./agent_empathic_gateway.md) | Agent 规范 |
+| [docs/empathic_gateway_adjustment_plan.md](./empathic_gateway_adjustment_plan.md) | 改造方案 v1 |
+| [docs/empathic_gateway_adjustment_plan_src.md](./empathic_gateway_adjustment_plan_src.md) | 改造方案 v2 |
+
+### 模块文档
+
+| 文档 | 说明 |
+|------|------|
+| [mcp-server/README.md](../mcp-server/README.md) | Empathic Gateway 模块说明（子模块） |
+
+---
+
+## 快速导航
+
+- **安装使用** → [README.md](../README.md#快速开始)
+- **开发指南** → [CLAUDE.md](../CLAUDE.md)
+- **情感网关** → [mcp-server/README.md](../mcp-server/README.md)
+- **版本历史** → [docs/CHANGELOG.md](./CHANGELOG.md)
 
 ## 改造目标
 
@@ -147,6 +185,11 @@ xiaonuan/
 - 升级指南
 - 兼容性说明
 - 未来计划
+
+#### docs/gateway_plan.md
+- 前置 Gateway / Master Gateway 规划
+- 关键约束与策略
+- 调整方案与测试 SOP
 
 #### CLAUDE.md（保留）
 - Claude Code 开发指南
@@ -295,6 +338,7 @@ git push -u origin main
 - [x] docs/usage.md
 - [x] docs/CHANGELOG.md
 - [x] docs/SUMMARY.md
+- [x] docs/gateway_plan.md
 - [x] CLAUDE.md（保留）
 
 ### 源文件

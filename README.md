@@ -1,6 +1,8 @@
 # 李小暖 · 人格插件工程
 
-> 一个标准化的 AI 人格插件系统，专注于"你我他"的身份记忆管理，支持跨平台集成（OpenClaw、Claude、Cursor 等）
+> 一个标准化的 AI 伴侣系统，专注于情感交互与身份记忆管理
+
+**注意**：本项目是**单一完整系统**，`mcp-server/` 是实现子模块（Empathic Gateway），不是独立项目。
 
 [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/user/xiaonuan)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -42,6 +44,14 @@
 
 ## 核心特性
 
+### ✅ Empathic Gateway 情感网关
+
+- **PAD 情感分析**：基于 Pleasure-Arousal-Dominance 三维模型
+- **认知偏差检测**：10 种认知扭曲模式识别
+- **情感陪护策略**：根据情绪强度自动调整响应风格
+- **End-of-Turn 写入**：每次回复后自动持久化情感状态
+- **SecurityGate 安全机制**：三层安全层级，SEALED 层永不上云
+
 ### ✅ 身份记忆管理
 
 - **AI 身份**：定义 AI 的人格、价值观、成长记录
@@ -72,33 +82,33 @@ xiaonuan/
 ├── config/                      # 配置文件（可编辑）
 │   ├── persona.yaml            # 人格核心配置
 │   ├── behavior.yaml           # 行为规则配置
-│   └── sync.yaml               # 同步策略配置
-├── data/                        # 数据目录
-│   ├── identity/               # 身份记忆（上云）
-│   │   ├── self/              # AI 身份
-│   │   ├── master/            # 主人身份
-│   │   └── others/            # 其他人身份
-│   ├── memory/                 # 事件记忆（上云）
-│   │   ├── memory_week/
-│   │   ├── memory_month/
-│   │   └── memory_topic/
-│   └── secure/                 # 隐私数据（本地）
-│       ├── secure_key/
-│       └── secure_message/
+│   └── sync.yaml              # 同步策略配置
 ├── src/                         # 源文件（规则定义）
-│   ├── SKILL.md                # 技能和规则
-│   ├── master_base.md          # 主人档案规则
-│   ├── memory_base.md          # 记忆系统规则
-│   ├── soul_base.md            # 灵魂系统规则
-│   ├── tasks_base.md           # 任务调度规则
-│   ├── secure_base.md          # 安全规则
-│   └── skills_base.md          # 技能库规则
-├── install.py                   # 安装脚本（项目根目录）
-├── docs/                        # 文档
-├── .backup/                     # 备份文件
-├── .gitignore                   # Git 忽略规则
-├── CLAUDE.md                    # Claude Code 指南
-└── README.md                    # 项目说明
+│   ├── SKILL.md               # 技能和规则
+│   ├── master_base.md         # 主人档案规则
+│   ├── memory_base.md         # 记忆系统规则
+│   ├── soul_base.md           # 灵魂系统规则
+│   ├── tasks_base.md          # 任务调度规则
+│   ├── secure_base.md         # 安全规则
+│   └── skills_base.md         # 技能库规则
+├── mcp-server/                  # MCP 服务实现
+│   ├── src/
+│   │   ├── empathic_gateway/  # 情感网关核心
+│   │   │   ├── emotion/      # 情感计算引擎
+│   │   │   ├── processing/   # 处理流程
+│   │   │   ├── rewriting/    # 输出润色
+│   │   │   ├── storage/      # 存储管理
+│   │   │   ├── hooks/       # 生命周期钩子
+│   │   │   ├── adapters/    # 适配器
+│   │   │   └── security/    # 安全模块
+│   │   ├── tools/            # MCP Tools
+│   │   └── resources/        # MCP Resources
+│   ├── config/               # 网关配置
+│   └── gateway_data/         # 网关数据存储
+├── docs/                       # 文档
+├── install.py                  # 安装脚本
+├── CLAUDE.md                   # Claude Code 指南
+└── README.md                   # 项目说明
 ```
 
 ### 数据流转
@@ -107,12 +117,20 @@ xiaonuan/
 用户交互
     │
     ▼
+[Empathic Gateway] ← MCP Server
+    │
+    ├─ 情感分析（PAD 向量）
+    ├─ 认知偏差检测
+    ├─ 意图分类
+    └─ 输出润色
+    │
+    ▼
 [AI Agent]
     │
-    ├─→ 读取配置（config/）
-    ├─→ 读取身份（data/identity/）
-    ├─→ 更新记忆（data/memory/）
-    └─→ 同步到云端（GitHub）
+    ├─ 读取配置（config/）
+    ├─ 读取人格（src/soul_base.md）
+    ├─ 更新记忆（mcp-server/gateway_data/）
+    └─ 同步到云端（GitHub）
 ```
 
 ---
