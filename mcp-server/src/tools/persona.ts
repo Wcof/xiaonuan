@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
-import yaml from 'yaml';
-import { PATHS } from '../utils.js';
+import { PATHS, projectRoot } from '../utils.js';
+import { SourceAdapter } from '../empathic_gateway/adapters/source_adapter.js';
 
 const WRITABLE_MEMORY_TYPES = new Set(['week', 'month', 'topic']);
 
@@ -22,21 +22,13 @@ export function registerPersonaTool(registerTool: (def: any, handler: any) => vo
         },
         async () => {
             try {
-                const personaPath = path.join(PATHS.config, 'persona.yaml');
-                const behaviorPath = path.join(PATHS.config, 'behavior.yaml');
-
-                let personaData = {};
-                let behaviorData = {};
-
-                try {
-                    const content = await fs.readFile(personaPath, 'utf-8');
-                    personaData = yaml.parse(content);
-                } catch { }
-
-                try {
-                    const content = await fs.readFile(behaviorPath, 'utf-8');
-                    behaviorData = yaml.parse(content);
-                } catch { }
+                const adapter = new SourceAdapter({ srcPath: path.join(projectRoot, 'src') });
+                await adapter.initialize();
+                const personaData = adapter.getPersona();
+                const behaviorData = {
+                    memory: adapter.getMemoryPolicy(),
+                    security: adapter.getSecurityPolicy()
+                };
 
                 return {
                     persona: personaData,

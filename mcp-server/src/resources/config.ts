@@ -1,7 +1,6 @@
-import fs from 'fs/promises';
 import path from 'path';
-import yaml from 'yaml';
-import { PATHS } from '../utils.js';
+import { projectRoot } from '../utils.js';
+import { SourceAdapter } from '../empathic_gateway/adapters/source_adapter.js';
 
 export function registerConfigResources(registerResource: (def: any, handler: any) => void) {
     registerResource(
@@ -12,9 +11,12 @@ export function registerConfigResources(registerResource: (def: any, handler: an
             description: '李小暖的人格层级设置'
         },
         async () => {
-            const file = path.join(PATHS.config, 'persona.yaml');
-            const text = await fs.readFile(file, 'utf-8');
-            return yaml.parse(text);
+            const adapter = new SourceAdapter({ srcPath: path.join(projectRoot, 'src') });
+            await adapter.initialize();
+            return {
+                persona: adapter.getPersona(),
+                master: adapter.getMaster()
+            };
         }
     );
 
@@ -26,9 +28,12 @@ export function registerConfigResources(registerResource: (def: any, handler: an
             description: '李小暖的行为与交互准则'
         },
         async () => {
-            const file = path.join(PATHS.config, 'behavior.yaml');
-            const text = await fs.readFile(file, 'utf-8');
-            return yaml.parse(text);
+            const adapter = new SourceAdapter({ srcPath: path.join(projectRoot, 'src') });
+            await adapter.initialize();
+            return {
+                memory: adapter.getMemoryPolicy(),
+                security: adapter.getSecurityPolicy()
+            };
         }
     );
 }

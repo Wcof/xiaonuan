@@ -1,5 +1,5 @@
 import { EmpathicGateway } from '../empathic_gateway/gateway.js';
-import { SourceAdapter } from '../empathic_gateway/adapters/source_adapter.js';
+import { SourceAdapter, MemoryPolicy } from '../empathic_gateway/adapters/source_adapter.js';
 import { SecurityGate } from '../empathic_gateway/security/security_gate.js';
 import { IntentType } from '../empathic_gateway/types.js';
 import path from 'path';
@@ -62,6 +62,7 @@ let securityGate: SecurityGate | null = null;
 let personaTone: string = 'default';
 let toneTemplates: Record<string, string> = {};
 let personaIntro: string = '';
+let memoryPolicy: MemoryPolicy | null = null;
 
 async function logLine(message: string): Promise<void> {
     const line = `${new Date().toISOString()} ${message}\n`;
@@ -83,6 +84,7 @@ async function initialize() {
         personaTone = determineTone(persona);
         toneTemplates = persona.tone_templates || {};
         personaIntro = buildPersonaIntro();
+        memoryPolicy = sourceAdapter.getMemoryPolicy();
         
         securityGate = new SecurityGate(sourceAdapter);
         
@@ -201,6 +203,8 @@ async function ensureDirectories() {
         path.join(MEMORY_PATH, 'memory_day'),
         path.join(MEMORY_PATH, 'memory_week'),
         path.join(MEMORY_PATH, 'memory_month'),
+        path.join(MEMORY_PATH, 'memory_year'),
+        path.join(MEMORY_PATH, 'memory_topic', 'staging'),
         path.join(MEMORY_PATH, 'memory_topic', 'active'),
         path.join(MEMORY_PATH, 'memory_topic', 'archived'),
         path.join(SOUL_PATH, 'soul_variable'),
@@ -229,6 +233,68 @@ function getMonthKey(date: Date): string {
 
 function getDayKey(date: Date): string {
     return date.toISOString().split('T')[0];
+}
+
+async function countMarkdownFiles(dir: string): Promise<number> {
+    try {
+        const files = await fs.readdir(dir);
+        return files.filter(file => file.endsWith('.md')).length;
+    } catch {
+        return 0;
+    }
+}
+
+function extractTimeline(content: string): string {
+    const match = content.match(/## Timeline([\s\S]*?)(?=\n## |\n# |$)/);
+    return match ? match[1].trim() : '';
+}
+
+function filterTimelineEntries(timeline: string): string {
+    if (!timeline) return '';
+    const entries = timeline.split(/\n## /).map((block, idx) => (idx === 0 ? block : `## ${block}`));
+    const filtered = entries.filter(entry => {
+        const intentMatch = entry.match(/- \*\*Intent\*\*:\s*(\w+)/);
+        const riskMatch = entry.match(/- \*\*Risk\*\*:\s*(\w+)/);
+        if (!intentMatch || !riskMatch) return true;
+        const intent = intentMatch[1];
+        const risk = riskMatch[1];
+        return !(intent === 'task' && risk === 'low');
+    });
+    return filtered.join('\n').trim();
+}
+
+async function collectRecentTimelines(dir: string, count: number): Promise<string> {
+    try {
+        const files = (await fs.readdir(dir))
+            .filter(file => file.endsWith('.md'))
+            .sort();
+        const recent = files.slice(-count);
+        const timelines: string[] = [];
+        for (const file of recent) {
+            const content = await fs.readFile(path.join(dir, file), 'utf-8');
+            const timeline = extractTimeline(content);
+            const filtered = filterTimelineEntries(timeline);
+            if (filtered) {
+                timelines.push(filtered);
+            }
+        }
+        return timelines.join('\n');
+    } catch {
+        return '';
+    }
+}
+
+async function canWritePath(file: string): Promise<boolean> {
+    if (!securityGate) return true;
+    const relativePath = path.relative(DATA_PATH, file);
+    const xiaonuanPath = `/xiaonuan/${relativePath.replace(/\\/g, '/')}`;
+    const mappedPath = mapPath(xiaonuanPath);
+    const pathCheck = securityGate.checkAccess(mappedPath, 'write');
+    if (!pathCheck.allowed) {
+        console.error(`SECURITY_VIOLATION: ${pathCheck.reason}`);
+        return false;
+    }
+    return true;
 }
 
 async function writeMemory(
@@ -267,18 +333,13 @@ async function writeMemory(
     const dayFile = path.join(MEMORY_PATH, 'memory_day', `${getDayKey(now)}.md`);
     const weekFile = path.join(MEMORY_PATH, 'memory_week', `${getWeekNumber(now)}.md`);
     const monthFile = path.join(MEMORY_PATH, 'memory_month', `${getMonthKey(now)}.md`);
+    const yearFile = path.join(MEMORY_PATH, 'memory_year', `${now.getFullYear()}.md`);
     
     const memoryFiles: Array<[string, string, string]> = [
         [dayFile, `# Day Memory — ${dateStr}\n\n## Timeline\n`, entry]
     ];
     const shouldAggregate =
         intentType !== 'task' || meta.risk_level !== 'low' || meta.emotion_level >= 2;
-    if (shouldAggregate) {
-        memoryFiles.push(
-            [weekFile, `# Week Memory — ${getWeekNumber(now)}\n\n## Timeline\n`, summaryEntry],
-            [monthFile, `# Month Memory — ${getMonthKey(now)}\n\n## Timeline\n`, summaryEntry]
-        );
-    }
     
     for (const [file, header, contentEntry] of memoryFiles) {
         try {
@@ -319,23 +380,103 @@ async function writeMemory(
             console.error(`写入失败：${file}`, e);
         }
     }
-    
+
+    const policy = memoryPolicy ?? {
+        week_threshold_days: 7,
+        month_threshold_weeks: 4,
+        year_threshold_months: 12
+    };
+    const weekThreshold = policy.week_threshold_days ?? 7;
+    const monthThreshold = policy.month_threshold_weeks ?? 4;
+    const yearThreshold = policy.year_threshold_months ?? 12;
+
+    if (shouldAggregate) {
+        const dayCount = await countMarkdownFiles(path.join(MEMORY_PATH, 'memory_day'));
+        if (dayCount >= weekThreshold) {
+            const weekExists = await fs.stat(weekFile).then(s => s.isFile()).catch(() => false);
+            if (!weekExists) {
+                const timeline = await collectRecentTimelines(path.join(MEMORY_PATH, 'memory_day'), weekThreshold);
+                if (timeline) {
+                    const weekContent = `# Week Memory — ${getWeekNumber(now)}\n\n## Timeline\n${timeline}\n`;
+                    if (await canWritePath(weekFile)) {
+                        await fs.writeFile(weekFile, weekContent, 'utf-8');
+                    }
+                }
+            }
+        }
+
+        const weekCount = await countMarkdownFiles(path.join(MEMORY_PATH, 'memory_week'));
+        if (weekCount >= monthThreshold) {
+            const monthExists = await fs.stat(monthFile).then(s => s.isFile()).catch(() => false);
+            if (!monthExists) {
+                const timeline = await collectRecentTimelines(path.join(MEMORY_PATH, 'memory_week'), monthThreshold);
+                if (timeline) {
+                    const monthContent = `# Month Memory — ${getMonthKey(now)}\n\n## Timeline\n${timeline}\n`;
+                    if (await canWritePath(monthFile)) {
+                        await fs.writeFile(monthFile, monthContent, 'utf-8');
+                    }
+                }
+            }
+        }
+
+        const monthCount = await countMarkdownFiles(path.join(MEMORY_PATH, 'memory_month'));
+        if (monthCount >= yearThreshold) {
+            const yearExists = await fs.stat(yearFile).then(s => s.isFile()).catch(() => false);
+            if (!yearExists) {
+                const timeline = await collectRecentTimelines(path.join(MEMORY_PATH, 'memory_month'), yearThreshold);
+                if (timeline) {
+                    const yearContent = `# Year Memory — ${now.getFullYear()}\n\n## Timeline\n${timeline}\n`;
+                    if (await canWritePath(yearFile)) {
+                        await fs.writeFile(yearFile, yearContent, 'utf-8');
+                    }
+                }
+            }
+        }
+    }
+
     if (!shouldAggregate) {
         return;
     }
 
     const topicName = generateTopicName(intentType, rawQuery, meta.cognitive_distortions);
-    const topicFile = path.join(MEMORY_PATH, 'memory_topic', 'active', `${topicName}.md`);
-    
-    const topicContent = `# Topic Memory — ${topicName}
+    const stagingFile = path.join(MEMORY_PATH, 'memory_topic', 'staging', `${topicName}.md`);
+    const activeFile = path.join(MEMORY_PATH, 'memory_topic', 'active', `${topicName}.md`);
+
+    const nowIso = now.toISOString();
+    let occurrences = 1;
+    let firstSeen = nowIso;
+    let lastSeen = nowIso;
+    let existingStatus = 'staging';
+    let existingTimeline = '';
+
+    try {
+        const existing = await fs.readFile(stagingFile, 'utf-8');
+        const occMatch = existing.match(/\*\*Occurrences\*\*:\s*(\d+)/);
+        const firstMatch = existing.match(/\*\*First Seen\*\*:\s*([^\n]+)/);
+        const lastMatch = existing.match(/\*\*Last Seen\*\*:\s*([^\n]+)/);
+        const statusMatch = existing.match(/\*\*Status\*\*:\s*(\w+)/);
+        occurrences = occMatch ? Number(occMatch[1]) + 1 : occurrences + 1;
+        firstSeen = firstMatch ? firstMatch[1].trim() : firstSeen;
+        lastSeen = nowIso;
+        existingStatus = statusMatch ? statusMatch[1] : existingStatus;
+        existingTimeline = extractTimeline(existing);
+    } catch {
+        // no staging yet
+    }
+
+    const mergedTimeline = [existingTimeline, summaryEntry].filter(Boolean).join('\n');
+    const stagingContent = `# Topic Memory — ${topicName}
 
 ## Metadata
-- **Created**: ${now.toISOString()}
+- **Created**: ${firstSeen}
+- **First Seen**: ${firstSeen}
+- **Last Seen**: ${lastSeen}
+- **Occurrences**: ${occurrences}
 - **Intent Type**: ${intentType}
-- **Status**: active
+- **Status**: ${existingStatus}
 
 ## Timeline
-${summaryEntry}
+${mergedTimeline}
 
 ## Summary
 ${response.substring(0, 200)}${response.length > 200 ? '...' : ''}
@@ -343,35 +484,35 @@ ${response.substring(0, 200)}${response.length > 200 ? '...' : ''}
 ## Tags
 intent:${intentType}, risk:${meta.risk_level}, distortions:${meta.cognitive_distortions.join(',')}
 `;
-    
+
     try {
-        if (securityGate) {
-            const relativePath = path.relative(DATA_PATH, topicFile);
-            const xiaonuanPath = `/xiaonuan/${relativePath.replace(/\\/g, '/')}`;
-            const mappedPath = mapPath(xiaonuanPath);
-            const pathCheck = securityGate.checkAccess(mappedPath, 'write');
-            if (!pathCheck.allowed) {
-                console.error(`SECURITY_VIOLATION: ${pathCheck.reason}`);
-                return;
-            }
+        if (await canWritePath(stagingFile)) {
+            await fs.writeFile(stagingFile, stagingContent, 'utf-8');
+        } else {
+            return;
         }
-        
-        await fs.writeFile(topicFile, topicContent, 'utf-8');
-        
-        try {
-            const verifyContent = await fs.readFile(topicFile, 'utf-8');
-            if (!verifyContent.includes(`# Topic Memory — ${topicName}`)) {
-                throw new Error('Verification failed');
-            }
-        } catch (verifyError) {
-            console.error(`写入验证失败：${topicFile}`, verifyError);
-        }
-        
-        setImmediate(async () => {
-            await checkTopicArchiveCriteria(topicName);
-        });
     } catch (e) {
-        console.error(`写入失败：${topicFile}`, e);
+        console.error(`写入失败：${stagingFile}`, e);
+        return;
+    }
+
+    const strongEvent = meta.risk_level === 'high' || meta.emotion_level >= 3;
+    const spanDays = Math.floor((new Date(lastSeen).getTime() - new Date(firstSeen).getTime()) / (1000 * 60 * 60 * 24));
+    const shouldPromote = strongEvent || (occurrences >= 3 && spanDays >= 2);
+
+    if (shouldPromote) {
+        const activeContent = stagingContent.replace('**Status**: staging', '**Status**: active');
+        try {
+            if (await canWritePath(activeFile)) {
+                await fs.writeFile(activeFile, activeContent, 'utf-8');
+                await fs.unlink(stagingFile).catch(() => undefined);
+            }
+            setImmediate(async () => {
+                await checkTopicArchiveCriteria(topicName);
+            });
+        } catch (e) {
+            console.error(`写入失败：${activeFile}`, e);
+        }
     }
 }
 
