@@ -229,11 +229,11 @@ export class StorageManager {
         const id = currentMax + 1;
         this.trajectoryIdCounter.set(userId, id);
         
-        const savedTrajectory = {
+        const savedTrajectory: EmotionTrajectory = {
             ...trajectory,
             id,
             user_id: userId,
-            created_at: Date.now()
+            created_at: new Date().toISOString()
         };
 
         if (this.storageType === 'jsonl') {
