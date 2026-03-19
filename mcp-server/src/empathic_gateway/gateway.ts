@@ -94,7 +94,8 @@ export class EmpathicGateway {
                 '',
                 padVector,
                 emotionLevel,
-                intentType === 'emotion' ? 0.8 : 0.5
+                intentType === 'emotion' ? 0.8 : 0.5,
+                userId
             );
 
             if (memoryCandidate) {

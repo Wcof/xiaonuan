@@ -30,6 +30,9 @@ export function calculateTimeDecay(
     config: MemoryWeightConfig = DEFAULT_CONFIG
 ): number {
     const createdTime = typeof createdAt === 'string' ? new Date(createdAt).getTime() : createdAt;
+    if (isNaN(createdTime)) {
+        return 1.0;
+    }
     const daysSinceCreation = (now - createdTime) / (24 * 60 * 60 * 1000);
     const halfLifeDays = config.timeDecayHalfLifeDays || TIME_DECAY_HALF_LIFE_DAYS;
     const decayBase = config.timeDecayBase || TIME_DECAY_BASE;
@@ -78,7 +81,7 @@ export function calculateEffectiveWeight(
     const engagement = calculateEngagementFactor(interactionCount);
     const topicMultiplier = calculateTopicMultiplier(hasTopic);
 
-    return baseWeight * timeDecay * engagement * topicMultiplier;
+    return baseWeight * timeDecay;
 }
 
 export interface MemoryCreationInput {
@@ -184,7 +187,8 @@ export function extractMemoryCandidate(
     response: string,
     padVector: PADVector,
     emotionLevel: number,
-    userEngagement: number = 0.7
+    userEngagement: number = 0.7,
+    userId: string = 'default'
 ): EmotionalMemory | null {
     const emotionIntensity = calculateEmotionIntensity(padVector);
 
@@ -207,7 +211,7 @@ export function extractMemoryCandidate(
         weight,
         trigger_importance: emotionLevel >= 3,
         related_memories: [],
-        user_id: 'default',
+        user_id: userId,
         device_id: 'gateway',
         version: 1,
         timestamp,
