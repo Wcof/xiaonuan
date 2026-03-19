@@ -11,8 +11,19 @@ export {
     getDistortionDescription 
 } from './cognitive_distortion.js';
 export { 
-    calculateMemoryWeight, 
-    extractMemoryCandidate 
+    calculateMemoryWeight,
+    calculateEffectiveWeight,
+    calculateEmotionIntensity,
+    calculateTimeDecay,
+    calculateEngagementFactor,
+    calculateTopicMultiplier,
+    createEmotionalMemory,
+    recalculateMemoryWeight,
+    determineMemoryType,
+    getEmotionStateDescription,
+    extractMemoryCandidate,
+    type MemoryWeightConfig,
+    type MemoryCreationInput
 } from './memory_weight.js';
 export { calculateRewriteIntensity } from './rewrite_intensity.js';
 export { EMOTION_KEYWORDS } from './pad_calculator.js';

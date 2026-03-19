@@ -98,7 +98,16 @@ export class EmpathicGateway {
             );
 
             if (memoryCandidate) {
-                await storageManager.saveMemory(memoryCandidate, userId);
+                const legacyMemory = {
+                    type: memoryCandidate.type,
+                    summary: memoryCandidate.content,
+                    emotion_trajectory: memoryCandidate.pad_vector,
+                    timestamp: memoryCandidate.timestamp,
+                    weight: memoryCandidate.weight,
+                    user_id: userId,
+                    created_at: Date.now()
+                };
+                await storageManager.saveMemory(legacyMemory, userId);
                 memorySaved = true;
 
                 await storageManager.saveEmotionTrajectory({
