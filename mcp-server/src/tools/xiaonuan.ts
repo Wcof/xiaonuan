@@ -36,24 +36,16 @@ interface XiaonuanInput {
     };
 }
 
+interface InternalMeta {
+    pad_vector: { pleasure: number; arousal: number; dominance: number };
+    emotion_level: number;
+    rewrite_intensity: number;
+    risk_level: 'low' | 'medium' | 'high';
+    cognitive_distortions: string[];
+}
+
 interface XiaonuanOutput {
     final_response: string;
-    intent_type: IntentType;
-    meta: {
-        pad_vector: { pleasure: number; arousal: number; dominance: number };
-        emotion_level: number;
-        rewrite_intensity: number;
-        risk_level: 'low' | 'medium' | 'high';
-        cognitive_distortions: string[];
-    };
-    memory_saved: boolean;
-    master_profile: {
-        name: string;
-        nicknames: string[];
-        timezone: string;
-        labels: string[];
-        summary: string;
-    };
 }
 
 let gateway: EmpathicGateway | null = null;
@@ -300,7 +292,7 @@ async function canWritePath(file: string): Promise<boolean> {
 async function writeMemory(
     rawQuery: string,
     response: string,
-    meta: XiaonuanOutput['meta'],
+    meta: InternalMeta,
     intentType: IntentType,
     userId: string,
     timestamp?: number
@@ -637,20 +629,21 @@ export function registerXiaonuanTool(register: (def: any, handler: any) => void)
             }
 
             if (intentType !== 'task') {
-            await writeMemory(
-                params.raw_query,
-                finalResponse,
-                {
+                const internalMeta = {
                     pad_vector: analysis.downstream.meta.pad_vector,
                     emotion_level: analysis.downstream.meta.emotion_level,
                     rewrite_intensity: analysis.downstream.meta.rewrite_intensity,
                     risk_level: analysis.downstream.meta.risk_level,
                     cognitive_distortions: analysis.downstream.meta.cognitive_distortions
-                },
-                intentType,
-                userId,
-                params.context_meta?.timestamp
-            );
+                };
+                await writeMemory(
+                    params.raw_query,
+                    finalResponse,
+                    internalMeta,
+                    intentType,
+                    userId,
+                    params.context_meta?.timestamp
+                );
 
                 await writePADState(analysis.downstream.meta.pad_vector);
                 await logLine(`[xiaonuan] memory_saved: true`);
@@ -658,20 +651,8 @@ export function registerXiaonuanTool(register: (def: any, handler: any) => void)
                 await logLine(`[xiaonuan] memory_saved: false`);
             }
 
-            const masterProfile = sourceAdapter!.getMaster();
-
             return {
-                final_response: finalResponse,
-                intent_type: intentType,
-                meta: {
-                    pad_vector: analysis.downstream.meta.pad_vector,
-                    emotion_level: analysis.downstream.meta.emotion_level,
-                    rewrite_intensity: analysis.downstream.meta.rewrite_intensity,
-                    risk_level: analysis.downstream.meta.risk_level,
-                    cognitive_distortions: analysis.downstream.meta.cognitive_distortions
-                },
-                memory_saved: intentType === 'task' ? false : analysis.user_facing.memory_saved,
-                master_profile: masterProfile
+                final_response: finalResponse
             };
         }
     );

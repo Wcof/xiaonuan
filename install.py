@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║          李小暖 · 人格插件安装脚本 v5.0                          ║
+║          李小暖 · 人格插件安装脚本 v5.1                         ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  用法：                                                          ║
 ║    pip3 install -r requirements.txt             # 安装依赖       ║
@@ -11,29 +11,19 @@
 ║    python3 install.py --mcp --no-run            # 仅安装 MCP     ║
 ║    python3 install.py --mcp --log <path>        # 启动并记录日志 ║
 ║    python3 install.py --trae-config             # 自动修复 Trae 配置 ║
+║    python3 install.py --openclaw               # 安装 OpenClaw 人格插件 ║
+║    python3 install.py --openclaw --scope global # 全局 Session 模式 ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
 import sys
 import argparse
-from typing import Optional
-import os
 from pathlib import Path
-from datetime import datetime
+from typing import Optional
 
-try:
-    import yaml
-except ImportError:
-    print("❌ 缺少依赖：PyYAML")
-    print("请运行：pip3 install -r requirements.txt")
-    sys.exit(1)
-
-# 项目根目录
 PROJECT_ROOT = Path(__file__).parent
 
-def log(msg, level="INFO"):
-    icons = {"INFO": "   ", "OK": " ✅", "WARN": " ⚠️ ", "ERROR": " ❌", "STEP": " ▶"}
-    print(f"{icons.get(level, '   ')} {msg}")
+from common import log
 
 def show_menu():
     """显示交互式菜单"""
@@ -43,30 +33,79 @@ def show_menu():
     print("请选择安装方式：\n")
     print("1. 生成人格包（通用，支持所有工具）")
     print("2. MCP 服务（安装并启动）")
+    print("3. OpenClaw 人格插件（深度集成）")
     print("0. 退出\n")
 
     while True:
-        choice = input("请输入选项 [0-2]: ").strip()
-        if choice in ["0", "1", "2"]:
+        choice = input("请输入选项 [0-3]: ").strip()
+        if choice in ["0", "1", "2", "3"]:
             return choice
         print("❌ 无效选项，请重新输入")
 
-def load_config():
-    """加载配置文件"""
-    config = {}
-    config_dir = PROJECT_ROOT / "config"
+def ask_session_scope() -> str:
+    """询问装载范围"""
+    print("\n请选择装载范围：\n")
+    print("1. 当前 Session（仅本次会话，重启后需重新装载）")
+    print("2. 全局 Session（永久生效，但切换新 Session 时需要身份唤醒）\n")
 
-    for file in ["persona.yaml", "behavior.yaml", "sync.yaml"]:
-        path = config_dir / file
-        if path.exists():
-            with open(path, 'r', encoding='utf-8') as f:
-                config[file.replace('.yaml', '')] = yaml.safe_load(f)
+    while True:
+        choice = input("请输入选项 [1-2]: ").strip()
+        if choice in ["1", "2"]:
+            return "current_session" if choice == "1" else "global_session"
+        print("❌ 无效选项，请重新输入")
 
-    return config
+def confirm_install(scope: str) -> bool:
+    """二次确认安装"""
+    scope_desc = "当前 Session" if scope == "current_session" else "全局 Session"
+    print(f"\n⚠️  确认安装信息：")
+    print(f"   - 装载范围：{scope_desc}")
+    if scope == "global_session":
+        print(f"   - 注意：切换新 Session 后需要身份唤醒流程")
+        print(f"   - 建议：配合身份档案自动加载机制使用\n")
+    else:
+        print(f"   - 注意：重启后需要重新装载\n")
 
-def generate_persona_package(config):
+    while True:
+        confirm = input("确认安装？[y/N]: ").strip().lower()
+        if confirm in ["y", "yes"]:
+            return True
+        elif confirm in ["n", "no", ""]:
+            return False
+        print("❌ 无效选项，请输入 y 或 n")
+
+def get_openclaw_workspace() -> Optional[Path]:
+    """获取 OpenClaw workspace 路径"""
+    default_paths = [
+        Path.home() / ".openclaw" / "workspace",
+        Path.home() / "openclaw" / "workspace",
+    ]
+
+    for path in default_paths:
+        marker = path / "_xiaonuan_installed"
+        if marker.exists():
+            return path
+
+    if default_paths[0].exists():
+        return default_paths[0]
+
+    while True:
+        custom_path = input("\n请输入 OpenClaw workspace 路径（直接回车使用默认路径）: ").strip()
+        if not custom_path:
+            path = default_paths[0]
+        else:
+            path = Path(custom_path).expanduser()
+
+        if path.exists() or input(f"路径 {path} 不存在，是否创建？[y/N]: ").strip().lower() in ["y", "yes"]:
+            return path
+        print("❌ 请重新输入有效路径")
+
+def generate_persona_package():
     """生成人格包文件"""
+    from common import load_config, icons
+
     log("生成人格包文件...", "STEP")
+
+    config = load_config(PROJECT_ROOT)
 
     persona = config.get('persona', {})
     behavior = config.get('behavior', {})
@@ -76,7 +115,7 @@ def generate_persona_package(config):
 
     content = f"""# 李小暖 · 人格配置
 
-> 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}
+> 生成时间：{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}
 
 ## AI 身份
 
@@ -131,17 +170,14 @@ Windsurf 会自动加载项目根目录的 `.windsurfrules` 文件，无需手�
 **文件位置**：`{PROJECT_ROOT / 'xiaonuan-persona.md'}`
 """
 
-    # 写入人格包
     persona_file = PROJECT_ROOT / "xiaonuan-persona.md"
     persona_file.write_text(content, encoding='utf-8')
     log(f"已生成：{persona_file}", "OK")
 
-    # 写入 .cursorrules
     cursorrules = PROJECT_ROOT / ".cursorrules"
     cursorrules.write_text(content, encoding='utf-8')
     log(f"已生成：{cursorrules}", "OK")
 
-    # 写入 .windsurfrules
     windsurfrules = PROJECT_ROOT / ".windsurfrules"
     windsurfrules.write_text(content, encoding='utf-8')
     log(f"已生成：{windsurfrules}", "OK")
@@ -154,6 +190,8 @@ Windsurf 会自动加载项目根目录的 `.windsurfrules` 文件，无需手�
 
 def install_mcp(run_after: bool = True, log_path: Optional[str] = None):
     """安装 MCP 服务"""
+    from common import icons, log
+
     log("安装 MCP 服务...", "STEP")
 
     mcp_dir = PROJECT_ROOT / "mcp-server"
@@ -161,7 +199,6 @@ def install_mcp(run_after: bool = True, log_path: Optional[str] = None):
         log("MCP 服务目录不存在", "ERROR")
         return False
 
-    # 检查 Node.js
     import subprocess
     try:
         result = subprocess.run(["node", "--version"], capture_output=True, text=True)
@@ -170,7 +207,6 @@ def install_mcp(run_after: bool = True, log_path: Optional[str] = None):
         log("未找到 Node.js，请先安装 Node.js 18+", "ERROR")
         return False
 
-    # 安装依赖
     log("安装 npm 依赖...", "STEP")
     result = subprocess.run(["npm", "install"], cwd=mcp_dir, capture_output=True, text=True)
     if result.returncode != 0:
@@ -188,7 +224,6 @@ def install_mcp(run_after: bool = True, log_path: Optional[str] = None):
                 return True
         return False
 
-    # 编译（仅当有变更时）
     if needs_rebuild():
         log("检测到源码变更，编译 TypeScript...", "STEP")
         result = subprocess.run(["npm", "run", "build"], cwd=mcp_dir, capture_output=True, text=True)
@@ -199,7 +234,6 @@ def install_mcp(run_after: bool = True, log_path: Optional[str] = None):
     else:
         log("未检测到源码变更，跳过编译", "OK")
 
-    # 显示配置说明
     print("\n✅ MCP 服务安装完成！\n")
     print("配置说明：")
     print(f"MCP 服务路径：{mcp_dir / 'dist' / 'index.js'}\n")
@@ -217,9 +251,7 @@ def install_mcp(run_after: bool = True, log_path: Optional[str] = None):
     if not run_after:
         return True
 
-    # 启动 MCP 服务（前台阻塞）
     log("启动 MCP 服务（Ctrl+C 退出）...", "STEP")
-    import subprocess
     logs_dir = PROJECT_ROOT / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     resolved_log = Path(log_path) if log_path else (logs_dir / "mcp.log")
@@ -233,6 +265,8 @@ def install_mcp(run_after: bool = True, log_path: Optional[str] = None):
 
 def update_trae_config():
     """更新 Trae MCP 配置中的项目路径"""
+    from common import log
+
     trae_config = Path.home() / "Library/Application Support/Trae CN/User/mcp.json"
     if not trae_config.exists():
         log(f"未找到 Trae 配置文件：{trae_config}", "WARN")
@@ -264,6 +298,21 @@ def update_trae_config():
         log(f"写入 Trae 配置失败: {e}", "ERROR")
         return False
 
+def install_openclaw(scope: str):
+    """安装 OpenClaw 人格插件（委托给 openclaw 模块）"""
+    from openclaw import OpenClawInstaller
+
+    workspace = get_openclaw_workspace()
+    if not workspace:
+        return
+
+    installer = OpenClawInstaller(PROJECT_ROOT, workspace)
+    if installer.is_installed():
+        if not confirm_install(scope):
+            log("已取消安装", "INFO")
+            return
+    installer.install(scope)
+
 def main():
     parser = argparse.ArgumentParser(description='李小暖人格插件安装脚本')
     parser.add_argument('--persona', action='store_true', help='仅生成人格包')
@@ -271,25 +320,28 @@ def main():
     parser.add_argument('--no-run', action='store_true', help='仅安装，不启动 MCP')
     parser.add_argument('--log', type=str, help='MCP 日志输出路径（默认 logs/mcp.log）')
     parser.add_argument('--trae-config', action='store_true', help='自动修复 Trae MCP 配置路径')
+    parser.add_argument('--openclaw', action='store_true', help='安装 OpenClaw 人格插件')
+    parser.add_argument('--scope', type=str, choices=['current', 'global'], help='OpenClaw 装载范围')
 
     args = parser.parse_args()
 
-    # 加载配置
-    config = load_config()
-
-    # 命令行参数模式
     if args.persona:
-        generate_persona_package(config)
+        generate_persona_package()
         return
 
     if args.mcp:
         install_mcp(run_after=not args.no_run, log_path=args.log)
         return
+
     if args.trae_config:
         update_trae_config()
         return
 
-    # 交互式模式
+    if args.openclaw:
+        scope = 'global_session' if args.scope == 'global' else 'current_session'
+        install_openclaw(scope)
+        return
+
     choice = show_menu()
 
     if choice == "0":
@@ -297,9 +349,14 @@ def main():
         return
 
     if choice == "1":
-        generate_persona_package(config)
+        generate_persona_package()
     elif choice == "2":
         install_mcp()
+    elif choice == "3":
+        scope = ask_session_scope()
+        if not confirm_install(scope):
+            return
+        install_openclaw(scope)
 
 if __name__ == "__main__":
     main()
