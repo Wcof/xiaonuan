@@ -98,6 +98,9 @@ export class EmpathicGateway {
             );
 
             if (memoryCandidate) {
+                if (this.config.redactRawQuery) {
+                    memoryCandidate.summary = memoryCandidate.summary.split(' - ')[0];
+                }
                 await storageManager.saveMemory(memoryCandidate, userId);
                 memorySaved = true;
 
@@ -105,7 +108,7 @@ export class EmpathicGateway {
                     user_id: userId,
                     timestamp: Date.now(),
                     pad_vector: padVector,
-                    context: raw_query
+                    context: this.config.redactRawQuery ? undefined : raw_query
                 }, userId);
             }
         }

@@ -1,6 +1,7 @@
 import { MemoryCandidate, InterventionLog, EmotionTrajectory, PADVector } from '../types.js';
 import fs from 'fs/promises';
 import path from 'path';
+import { projectRoot } from '../../utils.js';
 
 export interface StorageConfig {
     dbPath?: string;
@@ -19,7 +20,7 @@ export class StorageManager {
     private initialized: boolean = false;
 
     constructor(config: StorageConfig = {}) {
-        this.dbPath = config.dbPath || './gateway_data';
+        this.dbPath = config.dbPath || path.join(projectRoot, 'mcp-server', 'gateway_data');
         this.storageType = config.storageType || 'jsonl';
     }
 

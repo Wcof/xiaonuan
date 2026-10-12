@@ -41,8 +41,9 @@ export function classifyIntent(query: string): IntentType {
     const emotionScore = calculateEmotionScore(query);
 
     const hasExplicitTask = TASK_INDICATORS.explicitTask.some(pattern => pattern.test(query));
+    const hasPersonalEmotion = EMOTION_INDICATORS.emotionVerbs.some(word => query.includes(word)) && /我|心情|情绪/.test(query);
     if (hasExplicitTask && taskScore > 0.3) {
-        return 'task';
+        return hasPersonalEmotion ? 'mixed' : 'task';
     }
 
     const hasEmotionWords = EMOTION_INDICATORS.emotionVerbs.some(word => query.includes(word));

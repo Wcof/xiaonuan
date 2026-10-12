@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { calculatePADVector } from '../mcp-server/dist/empathic_gateway/emotion/pad_calculator.js';
+import { getEmotionLevel, getRiskLevel } from '../mcp-server/dist/empathic_gateway/emotion/emotion_classifier.js';
+import { checkTriggerRules } from '../mcp-server/dist/empathic_gateway/processing/rule_engine.js';
+import { classifyIntent } from '../mcp-server/dist/empathic_gateway/processing/intent_classifier.js';
+const positive = calculatePADVector('我今天超级开心！！！');
+assert.equal(getRiskLevel(positive, getEmotionLevel(positive.arousal)), 'low');
+assert.equal(checkTriggerRules(positive, [], getEmotionLevel(positive.arousal)).intervention_type, 'none');
+assert(calculatePADVector('我不开心').pleasure < 0);
+assert(calculatePADVector('我不难过').pleasure > 0);
+assert(calculatePADVector('我不是不开心').pleasure > 0);
+assert.equal(calculatePADVector('下载累计数据并查看爱好分类').arousal, 0.15);
+assert.equal(classifyIntent('我很难过，帮我整理明天的计划'), 'mixed');
+const crisis = calculatePADVector('我不想活了');
+assert.equal(getRiskLevel(crisis, getEmotionLevel(crisis.arousal)), 'high');
+console.log('PASS: positive arousal, negation, technical false positives, mixed intent, crisis regression');

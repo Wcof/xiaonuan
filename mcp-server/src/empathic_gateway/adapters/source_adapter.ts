@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { projectRoot } from '../../utils.js';
 
 export interface PersonaConfig {
     traits: Record<string, number>;
@@ -101,7 +102,7 @@ export class SourceAdapter {
         // 这样可以兼容：
         // - MCP模式: 从 src/ 目录读取
         // - 直接装载模式: 从根目录读取（Claude官方方式）
-        this.srcPath = config.srcPath || './src';
+        this.srcPath = config.srcPath || path.join(projectRoot, 'src');
     }
 
     // 尝试多个可能存在的路径，返回第一个可用的
@@ -142,32 +143,28 @@ export class SourceAdapter {
             const toneTemplates: Record<string, string> = { ...FALLBACK_TONE_TEMPLATES };
             const behaviorPatterns: Record<string, any> = {};
             
-            // 提取大五人格基准值 - 查找 JSON 块
-            const traitsMatch = content.match(/```json\s*\n?([\s\S]*?)\n?```/);
-            if (traitsMatch) {
+            // 文档包含漂移等示例，不能把第一个 JSON 块当成人格基准。
+            for (const match of content.matchAll(/```json\s*([\s\S]*?)```/g)) {
+                let parsed;
                 try {
-                    const parsed = JSON.parse(traitsMatch[1].trim());
-                    for (const [key, value] of Object.entries(parsed)) {
-                        if (typeof value === 'number' && value >= 0 && value <= 1) {
-                            traits[key] = value;
+                    parsed = JSON.parse(match[1]);
+                } catch {
+                    continue;
+                }
+                if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+                for (const key of Object.keys(FALLBACK_TRAITS)) {
+                    const value = parsed[key];
+                    if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1) {
+                        traits[key] = value;
+                    }
+                }
+                if (parsed.tone_templates && typeof parsed.tone_templates === 'object') {
+                    for (const [key, value] of Object.entries(parsed.tone_templates)) {
+                        if (typeof value === 'string' && value.includes('{response}')) {
+                            toneTemplates[key] = value;
                         }
                     }
-                } catch (e) {
-                    console.warn('[SourceAdapter] 解析 traits 失败，使用默认值');
-                }
-            }
-            
-            // 提取行为模板中的 tone_templates
-            const templatesMatch = content.match(/behavior_templates[\s\S]*?```json\s*([\s\S]*?)```/);
-            if (templatesMatch) {
-                try {
-                    const parsed = JSON.parse(templatesMatch[1].trim());
-                    if (parsed.tone_templates) {
-                        Object.assign(toneTemplates, parsed.tone_templates);
-                    }
                     Object.assign(behaviorPatterns, parsed);
-                } catch (e) {
-                    console.warn('[SourceAdapter] 解析 behavior_templates 失败');
                 }
             }
 

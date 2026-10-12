@@ -17,7 +17,7 @@ export const EMOTION_KEYWORDS: Record<string, EmotionKeywordConfig> = {
         isNeutral: true
     },
     anger: {
-        keywords: ['生气', '愤怒', '讨厌', '烦', '恼火', '火大', '不爽', '愤'],
+        keywords: ['生气', '愤怒', '讨厌', '烦', '好烦', '恼火', '火大', '不爽', '愤'],
         valence: -0.8,
         intensity: 0.8,
         dominance: 0.6
@@ -35,7 +35,7 @@ export const EMOTION_KEYWORDS: Record<string, EmotionKeywordConfig> = {
         dominance: 0.7
     },
     fear: {
-        keywords: ['害怕', '恐惧', '担心', '焦虑', '不安', '紧张', '怕', '慌'],
+        keywords: ['害怕', '恐惧', '担心', '焦虑', '不安', '紧张', '怕', '我怕', '慌', '心慌'],
         valence: -0.6,
         intensity: 0.8,
         dominance: 0.2
@@ -83,7 +83,7 @@ export const EMOTION_KEYWORDS: Record<string, EmotionKeywordConfig> = {
         dominance: 0.2
     },
     fatigue: {
-        keywords: ['累', '疲惫', '疲倦', '困', '乏', '没精力', '疲劳'],
+        keywords: ['累', '很累', '好累', '累了', '我累', '疲惫', '疲倦', '困', '好困', '乏', '没精力', '疲劳'],
         valence: -0.3,
         intensity: 0.4,
         dominance: 0.3
@@ -143,21 +143,21 @@ function matchKeywords(query: string): { emotion: string; config: EmotionKeyword
 
     for (const [emotion, config] of Object.entries(EMOTION_KEYWORDS)) {
         let count = 0;
+        let valenceSum = 0;
         for (const keyword of config.keywords) {
-            let regex: RegExp;
-            if (keyword.length === 1) {
-                const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                regex = new RegExp(`(^|[^\\w])${escaped}($|[^\\w])`, 'g');
-            } else {
-                regex = new RegExp(keyword, 'g');
-            }
-            const matches = query.match(regex);
-            if (matches) {
-                count += matches.length;
+            const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped, 'gu');
+            for (const match of query.matchAll(regex)) {
+                const start = match.index!;
+                if (keyword.length === 1 && /[\p{L}\p{N}_]/u.test((query[start - 1] || '') + (query[start + 1] || ''))) continue;
+                const prefix = query.slice(Math.max(0, start - 8), start);
+                const negated = /(?:不|没|没有|不太|不怎么|不再)$/.test(prefix) && !/(?:不是|并非)不$/.test(prefix);
+                count++;
+                valenceSum += negated ? -config.valence : config.valence;
             }
         }
         if (count > 0) {
-            matched.push({ emotion, config, count });
+            matched.push({ emotion, config: { ...config, valence: valenceSum / count }, count });
         }
     }
 
@@ -173,7 +173,7 @@ function calculateIntensityModifier(query: string): number {
         modifier *= 1.3;
     }
 
-    const exclamationCount = (query.match(/!/g) || []).length;
+    const exclamationCount = (query.match(/[!！]/g) || []).length;
     if (exclamationCount >= 2) {
         modifier *= 1.2;
     }

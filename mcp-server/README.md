@@ -36,6 +36,8 @@
 cd mcp-server
 npm install
 npm run build
+# 包含构建及情绪、MCP、Hermes 生命周期与安装回归
+npm test
 ```
 
 ### 客户端配置
@@ -68,7 +70,9 @@ empathic_gateway/
 └── security/     # 安全模块
 ```
 
-详细 API 说明请参考根目录文档。
+规则、存储和诊断日志路径以项目根目录为基准。诊断日志不记录原始对话，网关默认脱敏 JSONL 摘要与轨迹；Markdown 记忆仍需私有管理。
+
+Hermes 自动生命周期由根目录 `hermes-integration/` 接入，安装方式与当前能力见根目录 README.md，进度和验证见 ROADMAP.md。
 
 ---
 

@@ -11,7 +11,7 @@ export interface TriggerRule {
 export const TRIGGER_RULES: TriggerRule[] = [
     {
         name: 'crisis_detection',
-        condition: (pad, distortions, emotionLevel) => emotionLevel >= 4 || pad.pleasure < -0.9,
+        condition: (pad, distortions, emotionLevel) => (emotionLevel >= 4 && pad.pleasure < -0.5) || pad.pleasure < -0.9,
         intervention_type: 'safety_protocol',
         trigger_reason: '检测到危机信号，需要立即介入',
         priority: 100

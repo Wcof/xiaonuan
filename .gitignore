@@ -32,6 +32,10 @@ venv/
 # 临时文件
 *.tmp
 .cache/
+.tmp/
+logs/
+mcp-server/gateway_data/
+data/soul/soul_variable/
 
 # Node.js
 node_modules/

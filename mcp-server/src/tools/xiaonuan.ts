@@ -4,11 +4,7 @@ import { SecurityGate } from '../empathic_gateway/security/security_gate.js';
 import { IntentType } from '../empathic_gateway/types.js';
 import path from 'path';
 import fs from 'fs/promises';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+import { projectRoot as PROJECT_ROOT } from '../utils.js';
 
 const DATA_PATH = path.join(PROJECT_ROOT, 'data');
 const MEMORY_PATH = path.join(DATA_PATH, 'memory');
@@ -587,8 +583,7 @@ export function registerXiaonuanTool(register: (def: any, handler: any) => void)
             await initialize();
             
             const userId = params.context_meta?.user_id || 'default';
-            await logLine(`[xiaonuan] input raw_query: ${params.raw_query}`);
-            await logLine(`[xiaonuan] input downstream_response: ${params.downstream_response}`);
+            await logLine('[xiaonuan] request received');
             
             if (securityGate) {
                 const blocked = securityGate.shouldBlockOutput(params.raw_query);
@@ -627,7 +622,7 @@ export function registerXiaonuanTool(register: (def: any, handler: any) => void)
                     analysis.downstream.meta
                 );
             }
-            await logLine(`[xiaonuan] output final_response: ${finalResponse}`);
+            await logLine('[xiaonuan] response ready');
             
             if (securityGate && finalResponse) {
                 const outputBlocked = securityGate.shouldBlockOutput(finalResponse);

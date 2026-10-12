@@ -46,11 +46,11 @@ export function getEmotionState(pad: PADVector): string {
 }
 
 export function getRiskLevel(pad: PADVector, emotionLevel: number): 'low' | 'medium' | 'high' {
-    if (emotionLevel >= 4) {
+    if (emotionLevel >= 4 && pad.pleasure < -0.5) {
         return 'high';
     }
 
-    if (emotionLevel >= 3) {
+    if (emotionLevel >= 3 && pad.pleasure < -0.5) {
         return 'high';
     }
 

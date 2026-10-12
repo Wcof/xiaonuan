@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "ts-node --esm src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "npm run build && node ../hermes-integration/engine-check.mjs && node ../hermes-integration/mcp-check.mjs && python3 ../hermes-integration/check.py && python3 ../hermes-integration/daily-check.py && python3 ../hermes-integration/install-check.py"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.0",
